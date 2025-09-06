@@ -4,8 +4,10 @@ import time
 from datetime import date, timedelta
 import matplotlib.pyplot as plt
 import numpy as np
-import auto_email
-from scoreclass import Scoreclass
+from src.scoreclass import Scoreclass
+import openpyxl
+from openpyxl.styles import PatternFill
+from src.export_to_drive import GoogleDriveManager
 
 # URL of the website to scrape
 
@@ -26,33 +28,41 @@ def read_url(url_in):
     return dict_out
 
 
-def summary(runner):
+def export_and_highlight(scoreclass, wrong_picks, excel_path="out/output.xlsx"):
+    scoreclass.df.to_excel(excel_path, index=False)
 
-    # Create summary and plot for viewing
-    players = runner.df.Owner.unique()
-    win_bin = np.zeros(len(players))
-    for i, player in enumerate(players):
-        win_bin[i] = runner.df.loc[runner.df.Owner == player, "Wins"].sum()
+    # Open the Excel file for formatting
+    wb = openpyxl.load_workbook(excel_path)
+    ws = wb.active
 
-    csfont = {"fontname": "Comic Sans MS"}
-    fig = plt.figure(num=1, dpi=80, edgecolor="k")
-    ax = fig.add_subplot(111)
-    # ax.set_axis_bgcolor("y")
-    plt.bar(players, win_bin, color="c")
-    plt.title(f"Standings After Week {runner.week_num}", **csfont)
-    plt.grid()
-    # plt.show()
+    # Find column indices for "Week" and each player
+    header = [cell.value for cell in ws[1]]
+    week_col_idx = header.index("Week") + 1  # openpyxl is 1-based
 
-    fig.savefig(
-        "C:\\Users\\NOTveitB\\Documents\\Python\\Personal\\Scrub Internet\\Standings.png"
+    # Highlight wrong picks in red
+    red_fill = PatternFill(
+        start_color="FFFF0000", end_color="FFFF0000", fill_type="solid"
     )
-    runner.winner = players[int(np.argmax(win_bin))]
 
-    for i, player in enumerate(players):
-        runner.send_score_email(runner.email_add[player])
+    for week_num, failures in wrong_picks.items():
+        # Find the row for this week
+        for row in range(2, ws.max_row + 1):
+            if ws.cell(row=row, column=week_col_idx).value == str(week_num):
+                for player in failures:
+                    if player in header:
+                        col_idx = header.index(player) + 1
+                        ws.cell(row=row, column=col_idx).fill = red_fill
 
-    return runner
-    # print(players)
+    # Highlight "Total" row (Row 20) in red if any value > 3
+    total_row = 20
+    for col_idx in range(1, ws.max_column + 1):
+        cell_value = ws.cell(row=total_row, column=col_idx).value
+        # Only check numeric cells (skip header, etc.)
+        if isinstance(cell_value, (int, float)) and cell_value >= 3:
+            ws.cell(row=total_row, column=col_idx).fill = red_fill
+
+    wb.save(excel_path)
+    wb.save("output/output.xlsx")
 
 
 # Send an HTTP GET request to the website
@@ -60,18 +70,20 @@ def summary(runner):
 if __name__ == "__main__":
 
     scoreclass = Scoreclass()
-
+    folder_id = "1GZvN3wq27RqxPQc3di0PrHebwOPPoZrY"
     scoreclass.df = pd.read_csv(scoreclass.df_path)
 
-    total_days = date.today() - date(2025, 9, 5)
+    total_days = date.today() - date(2025, 9, 3)
     iter_num = total_days.days + 1
     # Index through the 7 days of the week(including today)
     # for i in range(iter_num):
-    for i in range(40):
+    wrong_picks = {}  # Dictionary to track wrong picks for each player
+    for i in range(iter_num):
 
-        date = date.today() + timedelta(-40 + i)
-        # date = date.date(2025, 9, 4)+timedelta(i)
-        url = scoreclass.base_url + date.strftime("%Y%m%d")
+        # game_date = date.today() + timedelta(-50 + i)
+        game_date = date(2025, 9, 3) + timedelta(i)
+
+        url = scoreclass.base_url + game_date.strftime("%Y%m%d")
         html_dict = read_url(url)
 
         games = html_dict["events"]
@@ -80,20 +92,33 @@ if __name__ == "__main__":
         week_num = games[0]["week"]["number"]
         s = scoreclass.df.iloc[week_num - 1]
         print(week_num)
+
         for game in games:
             for team in game["competitions"][0]["competitors"]:
                 team_ind = team["team"]["abbreviation"]
                 win = team["winner"]
-                if win == False:
-                    failures = s[s == team_ind].index.tolist()
-                    print(f"{team_ind} lost")
-                    for failure in failures:
-                        scoreclass.df.loc[len(scoreclass.df) - 1, failure] = (
-                            int(scoreclass.df.loc[len(scoreclass.df) - 1, failure]) + 1
-                        )
+            if win == False:
+                failures = s[s == team_ind].index.tolist()
+                print(f"{team_ind} lost")
+                for failure in failures:
+                    scoreclass.df.loc[len(scoreclass.df) - 1, failure] = (
+                        int(scoreclass.df.loc[len(scoreclass.df) - 1, failure]) + 1
+                    )
+                    # Track wrong picks
+                    if week_num not in wrong_picks:
+                        wrong_picks[week_num] = []
+                    wrong_picks[week_num].append(failure)
+
+        # Print or use the wrong_picks dictionary as needed
+        print("Wrong picks this round:", wrong_picks)
 
         time.sleep(0.25)
     print(scoreclass.df)
-    scoreclass.df.to_csv("output.csv", index=False)
-    # scoreclass = summary(scoreclass)
-    # scoreclass.df.to_csv(scoreclass.df_path, index=False)
+    print(wrong_picks)
+    scoreclass.df.to_csv(f"output/Scores Week {week_num}.csv", index=False)
+    # Output DataFrame to Excel
+    export_and_highlight(
+        scoreclass, wrong_picks, excel_path=f"output/Scores Week {week_num}.xlsx"
+    )
+    gdrive = GoogleDriveManager()
+    gdrive.upload_file("output/output.xlsx", folder_id=folder_id)
