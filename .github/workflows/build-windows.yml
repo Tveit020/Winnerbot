@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies with uv
         run: uv pip install --system .
 
+      - name: Install PyInstaller
+        run: uv pip install --system pyinstaller
+
       - name: Build executable with PyInstaller
         run: pyinstaller --onefile main.py
 
