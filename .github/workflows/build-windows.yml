@@ -11,7 +11,8 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
 
       - name: Install uv
         run: pip install uv
@@ -28,7 +29,8 @@ jobs:
         run: pyinstaller --onefile main.py
 
       - name: Upload executable
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: windows-exe
           path: dist/main.exe
+
