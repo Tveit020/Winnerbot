@@ -96,7 +96,11 @@ if __name__ == "__main__":
         for game in games:
             for team in game["competitions"][0]["competitors"]:
                 team_ind = team["team"]["abbreviation"]
-                win = team["winner"]
+                if "winner" in team:
+                    win = team["winner"]
+                else:
+                    print("Game has not been played yet")
+                    continue
             if win == False:
                 failures = s[s == team_ind].index.tolist()
                 print(f"{team_ind} lost")
