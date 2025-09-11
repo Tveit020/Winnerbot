@@ -74,14 +74,17 @@ if __name__ == "__main__":
     scoreclass.df = pd.read_csv(scoreclass.df_path)
 
     total_days = date.today() - date(2025, 9, 3)
+    # total_days = date.today() - date(2025, 8, 3)
     iter_num = total_days.days + 1
     # Index through the 7 days of the week(including today)
     # for i in range(iter_num):
     wrong_picks = {}  # Dictionary to track wrong picks for each player
+    previous_week = 0
     for i in range(iter_num):
 
         # game_date = date.today() + timedelta(-50 + i)
         game_date = date(2025, 9, 3) + timedelta(i)
+        # game_date = date(2025, 8, 3) + timedelta(i)
 
         url = scoreclass.base_url + game_date.strftime("%Y%m%d")
         html_dict = read_url(url)
@@ -93,6 +96,24 @@ if __name__ == "__main__":
         s = scoreclass.df.iloc[week_num - 1]
         print(week_num)
 
+        # Check for missing picks for this week using scoreclass.df
+        # Only check the most current week if its Monday has passed
+        monday_of_week = game_date - timedelta(days=game_date.weekday()) + timedelta(7)
+        if (previous_week != week_num) and (date.today() >= monday_of_week):
+            previous_week = week_num
+            for player in scoreclass.df.columns:
+                if player in ["Week", "Total"]:
+                    continue
+                pick = s[player]
+                if pd.isna(pick) or pick == "":
+                    scoreclass.df.loc[len(scoreclass.df) - 1, player] = (
+                        int(scoreclass.df.loc[len(scoreclass.df) - 1, player]) + 1
+                    )
+                    if week_num not in wrong_picks:
+                        wrong_picks[week_num] = []
+                    wrong_picks[week_num].append(player)
+        # Print or use the wrong_picks dictionary as needed
+
         for game in games:
             for team in game["competitions"][0]["competitors"]:
                 team_ind = team["team"]["abbreviation"]
@@ -101,19 +122,20 @@ if __name__ == "__main__":
                 else:
                     print("Game has not been played yet")
                     continue
-            if win == False:
-                failures = s[s == team_ind].index.tolist()
-                print(f"{team_ind} lost")
-                for failure in failures:
-                    scoreclass.df.loc[len(scoreclass.df) - 1, failure] = (
-                        int(scoreclass.df.loc[len(scoreclass.df) - 1, failure]) + 1
-                    )
-                    # Track wrong picks
-                    if week_num not in wrong_picks:
-                        wrong_picks[week_num] = []
-                    wrong_picks[week_num].append(failure)
+                if win == False:
+                    failures = s[s == team_ind].index.tolist()
+                    print(f"{team_ind} lost")
+                    for failure in failures:
+                        scoreclass.df.loc[len(scoreclass.df) - 1, failure] = (
+                            int(scoreclass.df.loc[len(scoreclass.df) - 1, failure]) + 1
+                        )
+                        # Track wrong picks
+                        if week_num not in wrong_picks:
+                            wrong_picks[week_num] = []
+                        wrong_picks[week_num].append(failure)
 
-        # Print or use the wrong_picks dictionary as needed
+        # Check for missing picks for this week using scoreclass.df
+
         print("Wrong picks this round:", wrong_picks)
 
         time.sleep(0.25)
