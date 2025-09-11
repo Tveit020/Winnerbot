@@ -139,6 +139,8 @@ if __name__ == "__main__":
         print("Wrong picks this round:", wrong_picks)
 
         time.sleep(0.25)
+    if date.today().weekday() in [3, 4, 5, 6, 0]:  # Thursday (3) through Monday (0)
+        week_num -= 1
     print(scoreclass.df)
     print(wrong_picks)
     scoreclass.df.to_csv(f"output/Scores Week {week_num}.csv", index=False)
@@ -147,4 +149,6 @@ if __name__ == "__main__":
         scoreclass, wrong_picks, excel_path=f"output/Scores Week {week_num}.xlsx"
     )
     gdrive = GoogleDriveManager()
-    gdrive.upload_file("output/output.xlsx", folder_id=folder_id)
+    gdrive.upload_file(
+        "output/output.xlsx", base_file="Pick2025.xlsx", folder_id=folder_id
+    )

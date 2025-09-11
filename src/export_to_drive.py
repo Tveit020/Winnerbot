@@ -43,8 +43,11 @@ class GoogleDriveManager:
         print(f"Folder '{folder_name}' created with ID: {folder['id']}")
         return folder["id"]
 
-    def upload_file(self, local_file="output.xlsx", folder_id=None):
-        base_file = os.path.basename(local_file)
+    def upload_file(
+        self, local_file="output.xlsx", base_file="Pick2025.xlsx", folder_id=None
+    ):
+        # base_file = os.path.basename(local_file)
+        # base_file = "Pick2025.xlsx"
         # Search for existing file with the same name in the folder
         query = f"title='{base_file}' and trashed=false"
         if folder_id:
